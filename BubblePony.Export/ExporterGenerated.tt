@@ -1,0 +1,312 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+using OpenTK;
+using System;
+using System.Collections.Generic;
+
+namespace Quad64.Export
+{
+partial class Exporter{
+<#
+WriteType @int,@uint,@byte,@sbyte,@short,@ushort,@long,@ulong,@float,@double,@bool;
+WriteType[] WriteTypes = {
+	@int = new WriteType{ Name="int", },
+	@uint = new WriteType{ Name="uint", },
+	@byte = new WriteType{ Name="byte", },
+	@sbyte = new WriteType{ Name="sbyte", },
+	@short = new WriteType{ Name="short", },
+	@ushort = new WriteType{ Name="ushort", },
+	@long = new WriteType{ Name="long", },
+	@ulong = new WriteType{ Name="ulong", },
+	@float = new WriteType{ Name="float", },
+	@double = new WriteType{ Name="double", },
+	@bool = new WriteType{ Name="bool", },
+	@float.MakeFixed("Vector2",".X",".Y"),
+	@float.MakeFixed("Vector3",".X",".Y",".Z"),
+	@float.MakeFixed("Vector4",".X",".Y",".Z",".W"),
+	@float.MakeFixed("Quaternion",".X",".Y",".Z",".W"),
+};#>
+<#foreach(var Current in WriteTypes){
+	var Element=Current.BuiltinType;
+	var IsBool = Current.TypeCode == System.TypeCode.Boolean;
+	var IsByte = Current.TypeCode == System.TypeCode.Byte || Current.TypeCode == System.TypeCode.SByte;
+	if(!IsBool && !IsByte){#>
+	// sends the value to the buffer.
+	public unsafe void Value(<#=Current.Name#> value){
+		byte *v=stackalloc byte[<#=Current.ByteCount#>];
+<#if(Current.Fixed){int Index=0;foreach(var ElementName in Current.FixedItems){#>
+		((<#=Element.Name#>*)v)[<#=Index++#>]=value<#=ElementName#>;
+<#}}else{#>
+		*((<#=Current.Name#>*)v)=value;
+<#}#>
+		Value(v,(uint)<#=Current.ByteCount#>);
+	}
+<#	}#>
+	private unsafe void Raw(<#=Current.Name#>[] value, uint len){
+<#if(Current.Pointable){#>
+		fixed(<#=Current.Name#>*v=value)
+			Bytes((byte*)v,len*((uint)<#=Current.ByteCount#>));
+<#}else{#>
+		byte *v=stackalloc byte[<#=Current.ByteCount#>];
+		for(int i=0;i!=len;i++){
+<#if(Current.Fixed){int Index=0;foreach(var ElementName in Current.FixedItems){#>
+			((<#=Element.Name#>*)v)[<#=Index++#>]=value[i]<#=ElementName#>;
+<#}}else{#>
+			*((<#=Current.Name#>*)v)=value;
+<#}#>
+			Bytes(v,(uint)<#=Current.ByteCount#>);
+		}
+<#}#>
+	}
+	private unsafe void RawSizeCheck(<#=Current.Name#>[] value, uint len){
+		uint actual_length;
+		if(null == (object)value || 0==(actual_length=(uint)value.Length)){
+			Zeros(len*(uint)<#=Current.ByteCount#>);
+		}else if(len <= actual_length){
+			Raw(value,len);
+		}else{
+			Raw(value,actual_length);
+			Zeros((uint)(len-actual_length) * (uint)<#=Current.ByteCount#>);
+		}
+	}
+<#if(Current.Pointable){#>
+	private unsafe void Copy(<#=Current.Name#>*value, uint count){
+		if(null == value)
+			Zeros(count * (uint)<#=Current.ByteCount#>);
+		else
+			Bytes((byte*)value, count * (uint)<#=Current.ByteCount#>);
+	}
+	// sends the data at value address to the pointer then increments a count of times. if count is zero, nothing is done.
+	// if value is null, zeros are written to the buffer for the size of value * count
+	// count is now many values are sent<#if(Current.TypeCode!=System.TypeCode.Byte&&Current.TypeCode!=System.TypeCode.SByte){#>(not bytes)<#}#>.
+	public unsafe void Value(<#=Current.Name#>*value, uint count){
+		CallCheck();
+		if(0 != count && !bDisposed)Copy(value,count);
+	}
+	//the data is prefixed with the len which is the count of elements in the array and not explicitly the byte size.
+	public unsafe void Array(<#=Current.Name#>* array, uint len){
+		if(Size(len))Copy(array,len);
+	}
+<#}#>
+	// the count defines how many values (starting at index 0) are sent to the buffer without a prefix of size.
+	// when value is null or for every index exceeding that of value.Length zeros are stored in place of any value.
+	public void Value(<#=Current.Name#>[] value, uint count){
+		CallCheck();
+		if(0 != count && !bDisposed){
+			RawSizeCheck(value,count);
+		}
+	}
+	// the number of items in value are sent to the buffer without a prefix of size.
+	public void Value(<#=Current.Name#>[] value){
+		uint count;
+		CallCheck();
+		if(0 != (count=(uint)value.Length) && !bDisposed){
+			Raw(value,count);
+		}
+	}
+	//the data is prefixed with the length of the array
+	public void Array(<#=Current.Name#>[] array){
+		uint len;
+		if(Size(array,out len))Raw(array,len);
+	}
+	//the data is prefixed with the len. when len exceeds that of array or array is null, zeros are written in place.
+	public void Array(<#=Current.Name#>[] array, uint len){
+		if(Size(len))RawSizeCheck(array,len);
+	}
+	private sealed class Interface_<#=Current.Name#> : <#if(Current.Pointable){#>PointerInterface<<#=Current.Name#>>,<#}#> ValueInterface<<#=Current.Name#>> {
+<#
+		string VIFACE = "ValueInterface<"+Current.Name+">.",
+		PIFACE="PointerInterface<"+Current.Name+">.",
+		IFACE;#>
+		public static readonly <#=Current.Name#>[] Empty={};
+		public readonly Exporter exporter;
+		public Interface_<#=Current.Name#>(Exporter exporter){this.exporter=exporter;}
+		Exporter <#=VIFACE#>Exporter{get{return exporter;}}
+		void <#=VIFACE#>Value(ref <#=Current.Name#> v){exporter.Value(v);}
+		void <#=VIFACE#>Value(<#=Current.Name#>[] v){exporter.Value(v);}
+		void <#=VIFACE#>Value(ICollection<<#=Current.Name#>> v){exporter.Value(v);}
+		void <#=VIFACE#>Value(<#=Current.Name#>[] v,uint n){exporter.Value(v,n);}
+		void <#=VIFACE#>Value(ICollection<<#=Current.Name#>> v, uint n){exporter.Value(v,n);}
+		void <#=VIFACE#>Array(<#=Current.Name#>[] v){exporter.Array(v);}
+		void <#=VIFACE#>Array(ICollection<<#=Current.Name#>> v){exporter.Array(v);}
+		void <#=VIFACE#>Array(<#=Current.Name#>[] v,uint n){exporter.Array(v,n);}
+		void <#=VIFACE#>Array(ICollection<<#=Current.Name#>> v, uint n){exporter.Array(v,n);}
+<#if(Current.Pointable){		IFACE=PIFACE;#>
+		unsafe void <#=PIFACE#>Value(void*v,uint n){exporter.Value((<#=Current.Name#>*)v,n);}
+		unsafe void <#=PIFACE#>Array(void*v,uint n){exporter.Array((<#=Current.Name#>*)v,n);}
+<#}else {IFACE=VIFACE;}#>
+<#	IFACE=IFACE.Remove(IFACE.Length-1); #>
+	}; private <#=IFACE#> interface_<#=Current.Name#>;
+	public <#=IFACE#> <#=Current.Name#>Interface {get{return interface_<#=Current.Name#> ?? System.Threading.Interlocked.CompareExchange(ref interface_<#=Current.Name#>,(<#=IFACE#>) new Interface_<#=Current.Name#>(this),null)??interface_<#=Current.Name#>;}}
+	private static <#=Current.Name#>[] ListBuffer(ICollection<<#=Current.Name#>> v, uint max_size=1u<<31){
+		<#=Current.Name#>[] @out;
+		int len;
+		if( null ==(object)v ) @out = (<#=Current.Name#>[])null ;
+		else if(max_size==0 || 0 == (len=v.Count)) @out = Interface_<#=Current.Name#>.Empty;
+		else if(v is <#=Current.Name#>[]) @out = (<#=Current.Name#>[])v;
+		//else if(v is List<<#=Current.Name#>>) could do some effort to get the underlying buffer.
+		else{ @out = new <#=Current.Name#>[len]; v.CopyTo(@out,0); }
+		return @out;
+	}
+	//the data is prefixed with the length of the array
+	public void Array(ICollection< <#=Current.Name#> > array){ Array(ListBuffer(array)); }
+	public void Array(ICollection< <#=Current.Name#> > array, uint count){ Array(ListBuffer(array,count),count); }
+	public void Value(ICollection< <#=Current.Name#> > array){ Value(ListBuffer(array)); }
+	public void Value(ICollection< <#=Current.Name#> > array, uint count){ Value(ListBuffer(array,count),count); }
+<#}#>
+	private static class OnceLookup{
+		public static readonly Dictionary<System.IntPtr, InterfaceAccessor> Builtin = new Dictionary<System.IntPtr,InterfaceAccessor>(<#=WriteTypes.Length#>);
+		static OnceLookup(){
+<#foreach(var Current in WriteTypes){#>
+			Builtin.Add(typeof(<#=Current.Name#>).TypeHandle.Value, delegate(Exporter self){
+				return (object)(self.interface_<#=Current.Name#> ?? System.Threading.Interlocked.CompareExchange(ref self.interface_<#=Current.Name#>, (<#=Current.Pointable?"PointerInterface":"ValueInterface"#><<#=Current.Name#>>) new Interface_<#=Current.Name#>(self),null)??self.interface_<#=Current.Name#>);
+			});
+<#}#>		
+		}
+	}
+<#foreach(var ASCIIType in new string[]{"char","sbyte","byte"}){#>
+<#	string[] ArrayTypes = ASCIIType == "char" ? new string[]{"char*","string", "char[]"} : new string[] {ASCIIType+"[]",ASCIIType+"*"};#>
+<#	string ByteConvert = ASCIIType == "byte" ?"{0}" : ASCIIType=="sbyte" ? "(unchecked((byte){0}))" : "((byte){0})";#>
+<#	foreach(var ArrayType in ArrayTypes)for(int iOverload=0;iOverload<2;iOverload++){#>
+<#		bool bHasNum=false,bIsPtr=ArrayType[ArrayType.Length-1]=='*'; if(iOverload==0 && !bIsPtr) continue;#>
+	unsafe public void ASCII(<#=ArrayType#> <#=bIsPtr?"str":"arr"#><#if(iOverload==0){bHasNum=true;#>, uint len<#}#>)
+	{
+<#		if(!bIsPtr){#>
+		uint len;
+		<#=ASCIIType#>*str;
+<#		}#>
+		byte b;
+		if (null == <#=bIsPtr?"str":"(object)arr"#><#if(!bIsPtr){bHasNum=true;#>||0==(len=(uint)arr.Length)<#}else if(bHasNum){#>||0==len<#}#>)
+			False();
+		else{
+			CallCheck();
+			if (!bDisposed) <#if(!bIsPtr){#>fixed(<#=ASCIIType#>*str_pin=arr){str=str_pin;<#}#> do {
+				b = <#if(bHasNum){#>0==len--?(byte)0:<#}#><#=string.Format(ByteConvert,"*str++")#>;
+				Buffer[BufferPosition] = b;
+				if (++BufferPosition == BufferLength)
+				{
+					bAPICall = true;
+					Class.API(ref Tag, ClassTag, Buffer);
+					bAPICall = false;
+					BufferPosition = 0;
+					TotalWritten += BufferLength;
+				}
+			} while (0 != b);
+<#		if(!bIsPtr){#>
+			}
+<#		}#>
+		}
+	}
+<#	}#>
+<#}#>
+<#for(int iPipeOverload=0;iPipeOverload<2;iPipeOverload++){
+	string StreamType=iPipeOverload==0?"System.IO.Stream":"Func<byte[],int,int,int>";
+	string StreamRead=iPipeOverload==0?".Read":string.Empty;#>
+	// write from a stream to this exporter.
+	// this will deplete the stream unless max_bytes is set.
+	// to keep things normal,the stream is read from even if this is disposed.
+<#if (0!=iPipeOverload){#>
+	//
+	// this overload same as the stream version where you treat the non_null argument as if it were Read(byte[],int,int) (it should return zero when done, otherwise any positive value).
+<#}#>
+	public void Pipe(<#=StreamType#> non_null, uint max_bytes = 1u << 31) {
+		CallCheck();
+		int num_read, num_request;
+		while (
+			max_bytes != 0u &&
+			(num_read = non_null<#=StreamRead#>(Buffer, BufferPosition, 
+			(num_request = 
+				((num_request=(int)(BufferLength - BufferPosition))<max_bytes?num_request:(int)max_bytes)
+				)
+			))!= 0)
+		{
+			if (num_read > num_request)
+			{
+				KickInHead(ref non_null, final_words:"you listen here! I didn't ask you for that much!");
+				break;
+			}
+			else if (num_read < 0)
+			{
+				KickInHead(ref non_null, final_words:"why you doing that");
+				continue;
+			}
+
+			BufferPosition += (ushort)num_read;
+			if (BufferPosition == BufferLength)
+			{
+				if (!bDisposed)
+				{
+					bAPICall = true;
+					Class.API(ref Tag, ClassTag, Buffer);
+					bAPICall = false;
+					TotalWritten += BufferLength;
+				}
+				BufferPosition = 0;
+			}
+			max_bytes -= (uint)num_read;
+		}
+	}
+<#}#>
+}}
+<#+
+public enum BuiltinTypes {
+	@int=System.TypeCode.Int32,
+	@uint=System.TypeCode.UInt32,
+	@bool=System.TypeCode.Boolean,
+	@byte=System.TypeCode.Byte,
+	@sbyte=System.TypeCode.SByte,
+	@ushort=System.TypeCode.UInt16,
+	@short=System.TypeCode.Int16,
+	@ulong=System.TypeCode.UInt64,
+	@long=System.TypeCode.Int64,
+	@float=System.TypeCode.Single,
+	@double=System.TypeCode.Double,
+	@string=System.TypeCode.String,
+}
+public class WriteType {
+	public string Name;
+	public string[] FixedItems;
+	public WriteType FixedType;
+	public byte FixedNum;
+	public bool CustomWrite;
+	private System.TypeCode iTypeCode;
+	private string szName;
+	public string ByteCount {get{
+		return string.Format("(sizeof({0})*{1})",BuiltinType.Name,BuiltinCount);
+	}}
+	public WriteType BuiltinType {get{return FixedType ?? this;}}
+	public int BuiltinCount {get{return Builtin ? 1 : FixedItems.Length;}}
+	public bool Builtin {get{return TypeCode != System.TypeCode.Object;}}
+	public bool Pointable {get{var TypeCode= this.TypeCode; return TypeCode != System.TypeCode.Object && TypeCode != System.TypeCode.String && TypeCode != System.TypeCode.DBNull;}}
+
+	public System.TypeCode TypeCode {
+		get
+		{
+			if(szName!=Name){
+				szName=Name;
+				iTypeCode = System.TypeCode.Object;
+				if(!string.IsNullOrEmpty(szName)){
+					try{
+						iTypeCode=(System.TypeCode)(int)System.Enum.Parse(typeof(BuiltinTypes),szName);
+					}catch{}
+				}
+			}
+			return iTypeCode;
+		}
+	}
+	public bool Fixed { get{ return FixedNum !=0;} }
+
+	public WriteType MakeFixed(string Name, params string[] Items){
+		return new WriteType {
+			Name = Name,
+			FixedType = this,
+			FixedItems = (string[])Items.Clone(),
+			FixedNum = (byte)Items.Length,
+		};
+	}
+}
+#>

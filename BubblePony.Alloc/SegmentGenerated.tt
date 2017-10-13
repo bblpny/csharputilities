@@ -1,0 +1,904 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+using System;
+using System.Runtime.InteropServices;
+using System.Collections;
+using System.Collections.Generic;
+<#ResetStatic();#>
+
+namespace BubblePony.Alloc {
+<#for(int iEndian=0;iEndian<2;iEndian++){#>
+partial interface IAllocationAccess<#=iEndian==0?"LITTLE":"BIG"#> {
+<#foreach(var Block in BlockType.Each){#>
+///<summary> read the <#=Block#> at address</summary>
+<#=Block#> @<#=Block#>();
+///<summary> read the <#=Block#> at address+offset</summary>
+<#=Block#> @<#=Block#>(int byte_offset);
+///<summary> read the <#=Block#> at address+offset</summary>
+<#=Block#> @<#=Block#>(uint byte_offset);
+<#if(Block.Trait != BlockTrait.Float){#>
+///<summary> read the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> When size is less than <#=Block.Size#> the value is signed by the most significant bit in the end byte.<#}#></summary>
+<#=Block#> @<#=Block#>(int byte_offset, byte byte_size);
+///<summary> read the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> When size is less than <#=Block.Size#> the value is signed by the most significant bit in the end byte.<#}#></summary>
+<#=Block#> @<#=Block#>(uint byte_offset, byte byte_size);
+<#}#>
+///<summary> read the <#=Block#> at address</summary>
+void @in(out <#=Block#> value);
+///<summary> read the <#=Block#> at address+offset</summary>
+void @in(out <#=Block#> value,int byte_offset);
+///<summary> read the <#=Block#> at address+offset</summary>
+void @in(out <#=Block#> value,uint byte_offset);
+<#if(Block.Trait != BlockTrait.Float){#>
+///<summary> read the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> When size is less than <#=Block.Size#> the value is signed by the most significant bit in the end byte.<#}#></summary>
+void @in(out <#=Block#> value,int byte_offset, byte byte_size);
+///<summary> read the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> When size is less than <#=Block.Size#> the value is signed by the most significant bit in the end byte.<#}#></summary>
+void @in(out <#=Block#> value,uint byte_offset, byte byte_size);
+<#}#>
+///<summary> write the <#=Block#> at address</summary>
+void @out(<#=Block#> value);
+///<summary> write the <#=Block#> at address+offset</summary>
+void @out(<#=Block#> value,int byte_offset);
+///<summary> write the <#=Block#> at address+offset</summary>
+void @out(<#=Block#> value,uint byte_offset);
+<#if(Block.Trait != BlockTrait.Float){#>
+///<summary> write the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> Sign is ignored when size is <<#=Block.Size#>.<#}#></summary>
+void @out(<#=Block#> value,int byte_offset, byte byte_size);
+///<summary> write the <#=Block#> at address+offset limited by bytes which cannot exceed <#=Block.Size#>.<#if(Block.Trait==BlockTrait.Signed && Block.Size>1){#> Sign is ignored when size is <<#=Block.Size#>.<#}#></summary>
+void @out(<#=Block#> value,uint byte_offset, byte byte_size);
+<#}#>
+<#}#>
+<#if(iEndian==0){#>
+#if SOMEDAY
+///<summary> read the struct at address
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct<T>();
+///<summary> read the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct<T>(int byte_offset);
+///<summary> read the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct<T>(uint byte_offset);
+///<summary> read the struct at address
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct(Type T);
+///<summary> read the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct(int byte_offset, Type T);
+///<summary> read the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+ValueType @struct(uint byte_offset, Type T);
+///<summary> write the struct at address
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct<T>([In]ref T value);
+///<summary> write the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct<T>([In]ref T value,int byte_offset);
+///<summary> write the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct<T>([In]ref T value,uint byte_offset);
+///<summary> write the struct at address
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct(ValueType value);
+///<summary> write the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct(ValueType value,int byte_offset);
+///<summary> write the struct at address+offset
+/// note that the struct must follow the guidlines described by Marshal.PtrToStruct!</summary>
+void @struct(ValueType value,uint byte_offset);
+#endif
+<#}#>
+}
+<#}#>
+partial class Allocation : <#{bool First=true;foreach(var Block in BlockType.Each){if(First)First=false;else Write(",");#> 
+	IAllocationView<<#=Block#>,<#=Block.Segment#>><#}}foreach(var Block in BlockType.Each){#>,
+	IList<<#=Block#>><#}#> {
+<#foreach(var Block in BlockType.All){#>
+	[FieldOffset(0)]public unsafe readonly <#=Block#>*<#=Block.SystemName#>;
+<#}#>
+<#foreach(var Block in BlockType.Each){#>
+#region <#=Block.SystemName#>
+#region Shared
+<#PrintBlockMembers(Block,"this",true);#>
+#endregion
+#region Enumerators..
+<#if(Block==BlockType.Byte){#>
+	public <#=Block.Enumerator#> GetEnumerator(){return new <#=Block.Enumerator#>(this);}
+<#}#>
+	IEnumerator<<#=Block#>> IEnumerable<<#=Block#>>.GetEnumerator(){return new <#=Block.Enumerator#>(this);}
+#endregion
+#endregion
+<#}#>
+#region Access..
+<#PrintAccessMembers(false);#>
+#endregion
+
+<#foreach(var Block in BlockType.All){#>
+	public unsafe static <#=Block==BlockType.Void?"implicit":"explicit"#> operator <#=Block#>*(Allocation allocation){return null!=(object)allocation ? allocation.<#=Block.SystemName#> : null;}
+<#}#>
+}
+
+<#foreach(var Block in BlockType.Each)for(int iEnumerator=0;iEnumerator<2;iEnumerator++){
+	string Enumerator=Block.GetEnumeratorName(iEnumerator);
+	#>
+public partial struct <#=Enumerator#> : IEnumerator<<#=Block#>>, IEquatable<<#=Enumerator#>> {
+	public readonly Allocation Allocation;
+	public int Offset;
+<#		if(iEnumerator!=0){#>
+	public int Length;
+<#		}#>
+	public <#=Enumerator#>(Allocation Allocation){
+		this.Allocation = Allocation;
+<#		if(iEnumerator==0){#>
+		this.Offset=-1;
+<#		}else{#>
+		this.Offset=0;
+		if(null==(object)Allocation)
+			this.Length=0;
+		else
+			this.Length=<#=Block.FormatLength("Allocation.Length")#>;
+<#		}#>
+	}
+<#		if(iEnumerator==0){#>
+	public <#=Enumerator#>(IAllocationView<<#=Block#>> View) : this(View.GetAllocation()){}
+<#		}else{#>
+	public <#=Enumerator#>(IAllocationView<<#=Block#>> View){
+		var Type = View.GetAllocation(out this.Allocation);
+		if(Type== AllocationViewType.Segment){
+			View.GetOffsetAndLength(out this.Offset, out this.Length);
+		}else{
+			this.Offset=0;
+			this.Length=Type==AllocationViewType.Null ? 0 : <#=Block.FormatLength("Allocation.Length")#>;
+		}
+	}
+<#		}#>
+	public unsafe <#=Block.Name#> Current => (null ==(object)Current || Offset<0 || Offset>=<#=Block.FormatLength("Allocation.Length")#>)?(<#=Block#>)0:Allocation.<#=Block.SystemName#>[Offset];
+	object IEnumerator.Current => Current;
+	public unsafe <#=Block.Name#> *Pointer => Allocation.<#=Block.SystemName#>+Offset;
+	public bool MoveNext(){
+		return null!=(object)Allocation && (Offset<<#=Block.FormatLength("Allocation.Length")#>) && ++Offset != <#=Block.FormatLength("Allocation.Length")#>;
+	}
+	public void Dispose(){this=default(<#=Enumerator#>);}
+	public void Reset(){Offset=<#=iEnumerator-1#>;}
+	public override string ToString(){return "<#=Enumerator#>";}
+	public bool Equals(<#=Enumerator#> other){return Offset==other.Offset && (object)Allocation == other.Allocation;}
+	public override bool Equals(object obj){return obj is <#=Enumerator#> && Equals((<#=Enumerator#>)obj);}
+	public override int GetHashCode(){return Allocation.GetHashCode()+Offset;}
+	public static bool operator == (<#=Enumerator#> L,<#=Enumerator#> R){
+		return L.Offset==R.Offset && <#if(iEnumerator!=0){#>L.Length==R.Length &&<#}#>(object)L.Allocation == (object)R.Allocation;
+	}
+	public static bool operator != (<#=Enumerator#> L,<#=Enumerator#> R){
+		return L.Offset!=R.Offset || <#if(iEnumerator!=0){#>L.Length!=R.Length ||<#}#>(object)L.Allocation != (object)R.Allocation;
+	}
+}
+<#}
+string[] AllTypesInInfo = {"uType","uSegmentType","uArrayType", "uPointerType", "uAllocationEnumeratorType", "uSegmentEnumeratorType", "uNullableType"};
+string[] AllInterfacesInInfo = {"uViewInterfaceBase","uEnumerableInterface","uEnumeratorInterface","uEquatableInterface","uViewInterface","uCollectionInterface","uListInterface"};
+string[] AllTypesAndInterfacesInInfo = new string[AllTypesInInfo.Length+AllInterfacesInInfo.Length];
+{
+	int p=0;
+	foreach(var value in AllTypesInInfo)AllTypesAndInterfacesInInfo[p++]=value;
+	foreach(var value in AllInterfacesInInfo)AllTypesAndInterfacesInInfo[p++]=value;
+}
+foreach(var Block in BlockType.Each){#>
+internal sealed partial class <#=Block.Info#> : IAllocationSegmentInfo {
+	public static readonly IAllocationSegmentInfo Info=new <#=Block.Info#>();
+	private <#=Block.Info#>(){}
+	public static readonly Type 
+		uSegmentType = typeof(<#=Block.Segment#>),uAllocationEnumeratorType = typeof(<#=Block.Enumerator#>),
+		uSegmentEnumeratorType = typeof(<#=Block.EnumeratorLimited#>),uViewInterfaceBase = typeof(IAllocationView<<#=Block#>>),
+		uViewInterface = typeof(IAllocationView<<#=Block#>,<#=Block.Segment#>>),uListInterface = typeof(IList<<#=Block#>>),
+		uCollectionInterface = typeof(ICollection<<#=Block#>>),uEnumerableInterface = typeof(IEnumerable<<#=Block#>>),
+		uEnumeratorInterface = typeof(IEnumerator<<#=Block#>>),uEquatableInterface = typeof(IEquatable<<#=Block#>>),
+		uArrayType = typeof(<#=Block#>[]),uPointerType = typeof(<#=Block#>*),
+		uType = typeof(<#=Block#>), uNullableType=typeof(<#=Block#>?);
+	Type IAllocationSegmentInfo.Type => uType;
+	Type IAllocationSegmentInfo.SegmentType => uSegmentType;
+	Type IAllocationSegmentInfo.AllocationEnumeratorType => uAllocationEnumeratorType;
+	Type IAllocationSegmentInfo.SegmentEnumeratorType => uSegmentEnumeratorType;
+	Type IAllocationSegmentInfo.ViewInterfaceBase => uViewInterfaceBase;
+	Type IAllocationSegmentInfo.ViewInterface => uViewInterface;
+	Type IAllocationSegmentInfo.ListInterface => uListInterface;
+	Type IAllocationSegmentInfo.CollectionInterface => uCollectionInterface;
+	Type IAllocationSegmentInfo.EnumerableInterface => uEnumerableInterface;
+	Type IAllocationSegmentInfo.EnumeratorInterface => uEnumeratorInterface;
+	Type IAllocationSegmentInfo.EquatableInterface => uEquatableInterface;
+	Type IAllocationSegmentInfo.ArrayType => uArrayType;
+	Type IAllocationSegmentInfo.PointerType => uPointerType;
+	Type IAllocationSegmentInfo.NullableType => uNullableType;
+	TypeCode IAllocationSegmentInfo.TypeCode => TypeCode.<#=Block.SystemName#>;
+	int IAllocationSegmentInfo.ElementSize => <#=Block.Size#>;
+	int IAllocationSegmentInfo.Shift => <#=Block.Shift#>;
+	bool IAllocationSegmentInfo.Integer => <#=Block.Trait!=BlockTrait.Float?"true":"false"#>;
+	bool IAllocationSegmentInfo.Signed => <#=Block.Trait!=BlockTrait.Unsigned?"true":"false"#>;
+	bool IAllocationSegmentInfo.Unsigned => <#=Block.Trait==BlockTrait.Unsigned?"true":"false"#>;
+	bool IAllocationSegmentInfo.Float => <#=Block.Trait==BlockTrait.Float?"true":"false"#>;
+}
+<#}#>
+<#foreach(var Block in BlockType.Each){#>
+<#
+	string Segment=Block.Segment;
+	string IFACE="IAllocationView<"+Block+">";
+	#>
+public partial struct <#=Segment#> : IEquatable<<#=Segment#>>,<#if(Block==BlockType.Byte){#> IAllocationAccessBIG, IAllocationAccessLITTLE,<#}#> IAllocationView<<#=Block#>,<#=Segment#>>, IList<<#=Block#>>, IAllocationSegment {
+	public readonly Allocation Allocation;
+	public readonly unsafe <#=Block#>*<#=Block.SystemName#>;
+	public readonly int Length;
+	public IAllocationSegmentInfo uInfo => <#=Block.Info#>.Info;
+	unsafe public int ByteOffset => (null==(object)Allocation ? (IntPtr)((byte*)<#=Block.SystemName#>) : (IntPtr)(((byte*)<#=Block.SystemName#>)-Allocation.Byte)).ToInt32();
+	unsafe public int ByteLength => Length<#if(0!=Block.Shift){#><<<#=Block.Shift#><#}#>;
+	public int Offset => ByteOffset<#if(0!=Block.Shift){#>>><#=Block.Shift#><#}#>;	
+	public Allocation uAllocation =>Allocation;
+	public int uOffset => Offset;
+	public int uByteOffset => ByteOffset;
+	public int uLength => Length;
+	public int uByteLength => ByteLength;
+	public void uGetOffsetAndLength(out int Offset, out int Length){Offset=this.Offset;Length=this.Length;}
+	public ByteSegment uByteSegment => (ByteSegment)this;
+	unsafe internal <#=Segment#>(Allocation Allocation, int Offset, int Length){
+		this.Allocation=Allocation;
+		this.<#=Block.SystemName#>=(null!=(object)Allocation ? Allocation.<#=Block.SystemName#> : null) + Offset;
+		this.Length=Length;
+	}
+
+<#if(Block==BlockType.Byte) foreach(var InBlock in BlockType.Each){#>
+	unsafe private <#=Segment#>(ref <#=InBlock.Segment#> copy){
+		this.Allocation=copy.Allocation;
+		this.<#=Block.SystemName#>=(<#=Block#>*)copy.<#=InBlock.SystemName#>;
+		this.Length=<#if(InBlock.Shift!=0){#>copy.Length<<<#=InBlock.Shift#><#}else{#>copy.Length<#}#>;
+	}
+<#}#>
+	unsafe public bool Equals(<#=Segment#> other){
+		return <#=Block.SystemName#>==other.<#=Block.SystemName#> &&
+			Length==other.Length;
+	}
+	public override bool Equals(object other){
+		return other is <#=Segment#> && Equals((<#=Segment#>)other);
+	}
+	unsafe public override int GetHashCode(){
+		return ((IntPtr)(<#=Block.SystemName#>+Length)).GetHashCode();
+	}
+	public override string ToString(){return "<#=Segment#>";}
+<#if(Block==BlockType.Byte){#>
+#region Access..
+<#PrintAccessMembers(true);#>
+#endregion
+<#}#>
+#region Shared
+	<#PrintBlockMembers(Block,"Allocation",false);#>
+#endregion
+	public <#=Block.EnumeratorLimited#> GetEnumerator(){
+		return new <#=Block.EnumeratorLimited#>(Allocation){
+			Offset=Offset,
+			Length=Length,
+		};
+	}
+	IEnumerator<<#=Block#>> IEnumerable<<#=Block#>>.GetEnumerator(){return GetEnumerator();}
+	IEnumerator IEnumerable.GetEnumerator(){return GetEnumerator();}
+<#if(Block==BlockType.Byte) { 
+	foreach(var InBlock in BlockType.Each) if(InBlock!=BlockType.Byte){ #>
+	public static explicit operator <#=Segment#>(<#=InBlock.Segment#> other){
+		return new <#=Segment#>(ref other);
+	}
+<#	}#>
+	public <#=Segment#> ToByteSegment(){ return this; }
+<#	foreach(var InBlock in BlockType.Each) if(InBlock!=BlockType.Byte){ #>
+	public static bool operator == (<#=Segment#> L, <#=InBlock.Segment#> other){
+		return L.Equals(new <#=Segment#>(ref other));
+	}
+	public static bool operator != (<#=Segment#> L, <#=InBlock.Segment#> other){
+		return !L.Equals(new <#=Segment#>(ref other));
+	}
+	public static bool operator == (<#=InBlock.Segment#> other,<#=Segment#> L){
+		return L.Equals(new <#=Segment#>(ref other));
+	}
+	public static bool operator != (<#=InBlock.Segment#> other,<#=Segment#> L){
+		return !L.Equals(new <#=Segment#>(ref other));
+	}
+<#	}
+}else{#>
+	public ByteSegment ToByteSegment(){ return (ByteSegment)this; }
+<#	foreach(var InBlock in BlockType.Each) if(InBlock != Block && InBlock != BlockType.Byte){#>
+	public static bool operator == (<#=Segment#> L, <#=InBlock.Segment#> R){
+		return ((<#=BlockType.Byte.Segment#>)L).Equals((<#=BlockType.Byte.Segment#>)R);
+	}
+	public static bool operator != (<#=Segment#> L, <#=InBlock.Segment#> R){
+		return !((<#=BlockType.Byte.Segment#>)L).Equals((<#=BlockType.Byte.Segment#>)R);
+	}
+<#	}
+}#>
+	unsafe public static bool operator == (<#=Segment#> L, <#=Segment#> R){
+		return L.Length == R.Length && L.<#=Block.SystemName#> == R.<#=Block.SystemName#>;
+	}
+	unsafe public static bool operator != (<#=Segment#> L, <#=Segment#> R){
+		return L.Length != R.Length || L.<#=Block.SystemName#> != R.<#=Block.SystemName#>;
+	}
+}
+<#}#>
+partial class AllocationUtility {
+	public static class Empty {
+<#foreach(var Block in BlockType.Each){#>
+		public static readonly <#=Block#>[] <#=Block.SystemName#>;
+<#}#>
+		static Empty(){
+<#foreach(var Block in BlockType.Each){#>
+			{<#=Block#>[]Arr=null;System.Array.Resize(ref Arr,0);if(null==Arr)Arr=new <#=Block#>[0];<#=Block.SystemName#>=Arr;}
+<#}#>
+		}
+	}
+<#foreach(var Block in BlockType.Each){#>
+	public static <#=Block#>[] New<#=Block.SystemName#>Array(int Size){
+		return Size<=0?Empty.<#=Block.SystemName#>:new <#=Block#>[Size];
+	}
+<#}#>
+<#foreach(var Block in BlockType.Each){#>
+public static Allocation GetAllocation(this IAllocationView<<#=Block#>> View){return null == (object)View ? null : ((View as Allocation) ?? View.Allocation);}
+public static AllocationViewType GetAllocation(this IAllocationView<<#=Block#>> View, out Allocation Allocation){
+	AllocationViewType Out;
+	if(null!=(object)View)
+		if(null!=(object)(Allocation=(View as Allocation)))
+			Out= AllocationViewType.Allocation;
+		else if(null!=(object)(Allocation=View.Allocation))
+			Out= AllocationViewType.Segment;
+		else
+			Out= AllocationViewType.Null;
+	else
+	{
+		Allocation=null;
+		Out=AllocationViewType.Null;
+	}
+	return Out;
+}
+public static <#=Block.EnumeratorLimited#> GetEnumerator(this IAllocationView<<#=Block#>> View){return new <#=Block.EnumeratorLimited#>(View);}
+unsafe public static <#=Block#>*Buffer(this IAllocationView<<#=Block#>> View){
+	var Type=GetAllocation(View,out Allocation Allocation);
+	return Type==AllocationViewType.Segment ? 
+		(Allocation.<#=Block.SystemName#>+View.Offset):
+		Type==AllocationViewType.Allocation?Allocation.<#=Block.SystemName#>:
+		null;
+}
+public static <#=Block#>[] ToArray(this IAllocationView<<#=Block#>> View){View.ToArray(out <#=Block#>[] arr); return arr;}
+public static <#=Block#>[] ToArray(this IAllocationView<<#=Block#>> View, int offset, int count){View.ToArray(out <#=Block#>[] arr, offset, count); return arr;}
+<#}#>
+public static IAllocationSegmentInfo GetSegmentInfo<T>(){
+	return GetSegmentInfo(typeof(T));
+}
+public static IAllocationSegmentInfo GetSegmentInfo(System.Type Type){
+<#foreach(var Block in BlockType.Each){#>
+	if(Type == typeof(<#=Block.Info#>) <#foreach(var TypeName in AllTypesAndInterfacesInInfo){#>||Type==<#=Block.Info#>.<#=TypeName#><#}#>)
+		return <#=Block.Info#>.Info;
+<#}#>
+<#foreach(var Block in BlockType.Each){bool first=Block!=BlockType.Byte;#>
+	if(<#if(!first){#>Type==typeof(Allocation)<#} foreach(var TypeName in AllInterfacesInInfo){if(first)first=false;else Write("||");#><#=Block.Info#>.<#=TypeName#>.IsAssignableFrom(Type)<#}#>)
+		return <#=Block.Info#>.Info;
+<#}#>
+	return null;
+}
+}}
+<#+
+public enum BlockTrait {
+	Signed,
+	Unsigned,
+	Float,
+};
+public static string Negative(string ParameterName=null){
+	return "throw new ArgumentException(\"negative\""+(
+	null==(object)ParameterName?string.Empty: (",\""+ParameterName+"\"")
+	)+")";
+}
+public static string Exceeds(string ParameterName=null){
+	return "throw new ArgumentOutOfRangeException("+(null==(object)ParameterName?"string.Empty":("\""+ParameterName+"\""))+",\">Count\")";
+}
+public static string CannotMutateLength(){return "throw new NotSupportedException(\"Cannot modify length of list\")";}
+public sealed class BlockType{
+	public readonly int Size, Bits, Shift;
+	public readonly BlockTrait Trait;
+	public readonly string SystemName,Name,Segment,Enumerator,EnumeratorLimited,Info,BlockName;
+	public sealed override string ToString(){return Name;}
+	public static readonly BlockType Byte,SByte,Int16,UInt16,Int32,UInt32,Single,Int64,UInt64,Double,Void;
+	public static readonly BlockType[] Each, All;
+	public BlockType WriteHalf => Shift==3?UInt32:Shift==2?UInt16:Byte;
+	public BlockType ReadHalf => Trait != BlockTrait.Signed ? WriteHalf : Shift==3?Int32:Shift==2?Int16:SByte;
+	private string _PartialReadFormat, _PartialWriteFormat;
+	public string PartialReadFormat{
+		get{
+			if(null==(object)_PartialReadFormat){
+				if(Size==1){
+					_PartialReadFormat = "0==({0}&1)?("+Name+")0:("+Name+")AccessUtility.R"+BlockName+"{2}1({1})";
+				}
+				else
+				{
+					_PartialReadFormat = "({0}<="+(Size>>1)+")?"+ReadHalf.PartialReadFormat.Replace(ReadHalf.Name,Name)+":";
+
+					if(8==Size){
+						_PartialReadFormat += "0==({0}&2)?0==({0}&1)?("+Name+")AccessUtility.R"+BlockName+"{2}8({1}):("+Name+")AccessUtility.R"+BlockName+"{2}5({1}):0==({0}&1)?("+Name+")AccessUtility.R"+BlockName+"{2}6({1}):("+Name+")AccessUtility.R"+BlockName+"{2}7({1})";
+					}else if(4==Size){
+						_PartialReadFormat += "0==({0}&1)?("+Name+")AccessUtility.R"+BlockName+"{2}4({1}):("+Name+")AccessUtility.R"+BlockName+"{2}3({1})";
+					}else{
+						_PartialReadFormat += "("+Name+")AccessUtility.R"+BlockName+"{2}2({1})";
+					}
+				}
+			}
+			return _PartialReadFormat;
+		}
+
+	}
+	public string PartialWriteFormat{
+		get{
+			if(null==(object)_PartialWriteFormat){
+				if(Size==1){
+					_PartialWriteFormat = "{{if(!(0==({0}&1)))AccessUtility.W"+BlockName+"{2}1({1},unchecked(("+Name+"){3}));}}";
+				}
+				else
+				{
+					_PartialWriteFormat = "if({0}<="+(Size>>1)+"){{"+WriteHalf.PartialWriteFormat+"}}else ";
+					if(8==Size){
+						var Unsigned = UInt64;
+						_PartialWriteFormat += 
+						"if(0==({0}&2))if(0==({0}&1))AccessUtility.W"+BlockName+"{2}8({1},unchecked(("+Name+"){3}));"+
+						"else AccessUtility.W"+Unsigned.BlockName+"{2}5({1},unchecked(("+Unsigned.Name+"){3}));"+
+						"else if(0==({0}&1))AccessUtility.W"+Unsigned.BlockName+"{2}6({1},unchecked(("+Unsigned.Name+"){3}));"+
+						"else AccessUtility.W"+Unsigned.BlockName+"{2}7({1},unchecked(("+Unsigned.Name+"){3}));";
+					}else if(4==Size){
+						var Unsigned = UInt32;
+						_PartialWriteFormat += 
+						"if(0==({0}&1))AccessUtility.W"+BlockName+"{2}4({1},unchecked(("+Name+"){3}));"+
+						"else AccessUtility.W"+Unsigned.BlockName+"{2}3({1},unchecked(("+Unsigned.Name+"){3}));";
+					}else{
+						_PartialWriteFormat += "AccessUtility.W"+BlockName+"{2}2({1},unchecked(("+Name+"){3}));";
+					}
+				}
+			}
+			return _PartialWriteFormat;
+		}
+	}
+	public string GetPartialRead(string le,string byte_size, string ptr){
+		return string.Format(PartialReadFormat,byte_size,ptr,le);
+	}
+	public string GetPartialWrite(string le,string byte_size, string ptr, string value="value"){
+		return string.Format(PartialWriteFormat,byte_size,ptr,le,value);
+	}
+	public string FormatLength(string Value="Length"){
+		if(0==Shift||LengthIsUnformatted)return Value;
+		else return string.Format("(({0})>>{1})",Value,Shift);
+	}
+	public string FormatSize(string Value="Length"){
+		if(0==Shift||!LengthIsUnformatted)return Value;
+		else return string.Format("((int)(((uint){0})<<{1}))",Value,Shift);
+	}
+	static BlockType(){
+		All = new BlockType[]{
+			Byte=new BlockType(1,BlockTrait.Unsigned),
+			SByte=new BlockType(1,BlockTrait.Signed),
+			UInt16=new BlockType(2,BlockTrait.Unsigned),
+			Int16=new BlockType(2,BlockTrait.Signed),
+			UInt32=new BlockType(4,BlockTrait.Unsigned),
+			Int32=new BlockType(4,BlockTrait.Signed),
+			Single=new BlockType(4,BlockTrait.Float),
+			UInt64=new BlockType(8,BlockTrait.Unsigned),
+			Int64=new BlockType(8,BlockTrait.Signed),
+			Double=new BlockType(8,BlockTrait.Float),
+			Void=new BlockType(),
+		};
+		var MinusVoid = All;
+		System.Array.Resize(ref MinusVoid, All.Length-1);
+		Each=MinusVoid;
+	}
+	private BlockType(){
+		Size=0;
+		Bits=0;
+		SystemName="Void";
+		Name="void";
+	}
+	public string GetEnumeratorName(int iEnumerator=0){return 0==iEnumerator?Enumerator:EnumeratorLimited;}
+	private BlockType(int Size, BlockTrait Trait){
+		this.Bits=Size<<3;
+		this.Trait=Trait;
+		this.Size=Size;
+		if(Size==1){
+			if(Trait == BlockTrait.Signed){
+				Name="sbyte";SystemName="SByte";
+			}else{
+				Name="byte";SystemName="Byte";
+			}
+		}else if(Trait == BlockTrait.Signed){
+			SystemName = "Int"+Bits;
+			if(Size==2)Name="short";else if(Size==4)Name="int";else Name="long";
+		}else if(Trait == BlockTrait.Unsigned){
+			SystemName = "UInt"+Bits;
+			if(Size==2)Name="ushort";else if(Size==4)Name="uint";else Name="ulong";
+		}else if(Size==4){
+			SystemName="Single";
+			Name="float";
+		}else{
+			SystemName="Double";
+			Name="double";
+		}
+		if(Size==1)Shift=0;else if(Size==2)Shift=1;else if(Size==4)Shift=2;else Shift=3;
+		this.Segment=SystemName+"Segment";
+		this.Enumerator=SystemName+"Enumerator";
+		this.EnumeratorLimited=this.Enumerator+"Limited";
+		this.Info = SystemName+"Info";
+
+		this.BlockName =(Trait==BlockTrait.Signed?"S":Trait==BlockTrait.Float?"F":"U")+Bits.ToString();
+	}
+}
+static bool LengthIsUnformatted;
+void PrintBlockMembers(BlockType Block, string Allocation, bool LengthNeedsOffset){
+	var Restore=LengthIsUnformatted;try{
+	LengthIsUnformatted=!LengthNeedsOffset;
+	bool ThisIsAllocation=Allocation=="this";
+	string AllocationOuter=ThisIsAllocation ? string.Empty : "Allocation.";
+#>
+	public IList<<#=Block#>> <#=Allocation=="this"?Block.SystemName:string.Empty#>List => this;
+<#+if(ThisIsAllocation){#>
+	public IAllocationView<<#=Block#>,<#=Block.Segment#>> <#=Block.SystemName#>View => this;
+	public <#=Block.Segment#> <#=Block.Segment#> => new <#=Block.Segment#>(this,0,<#=Block.FormatLength()#>);
+	<#=Block.Segment#> IAllocationView<<#=Block#>,<#=Block.Segment#>>.AsSegment(){ return <#=Block.Segment#>; }
+	IAllocationView<<#=Block#>> IAllocationView<<#=Block#>>.AsSegment(){ return <#=Block.Segment#>; }
+<#+}else if(!LengthNeedsOffset){#>
+	public <#=Block.Segment#> AsSegment(){return this;}
+	IAllocationView<<#=Block#>> IAllocationView<<#=Block#>>.AsSegment(){ return this; }
+<#+}#>
+	int ICollection<<#=Block#>>.Count => <#=Block.FormatLength()#>;
+	int IAllocationView<<#=Block#>>.Length => <#=Block.FormatLength()#>;
+<#+if(ThisIsAllocation){#>
+	int IAllocationView<<#=Block#>>.Offset => 0;
+	int IAllocationView<<#=Block#>>.ByteOffset => 0;
+	int IAllocationView<<#=Block#>>.ByteLength => <#=Block.FormatLength()+(0==Block.Shift?string.Empty:("<<"+Block.Shift))#>;
+<#+}#>
+	Allocation IAllocationView<<#=Block#>>.Allocation =><#=Allocation#>;
+	bool ICollection<<#=Block#>>.IsReadOnly => true;
+<#+for(int iInt=0;iInt<2;iInt++)for(int iFace=(ThisIsAllocation&&Block!=BlockType.Byte)?0:-1;iFace<2;iFace++){
+	string Integer=iInt==0?"int":"uint";
+	string IntegerCast = iInt==0?string.Empty:"(int)";
+	if(iFace!=-1){ if(iFace==0&&iInt!=0)continue;#>
+	unsafe <#=Block#> <#=iFace==0?"IList":"IAllocationView"#><<#=Block#>>.this[<#=Integer#> index]<#+}else{#>
+	public unsafe <#=Block#> this[<#=Integer#> index]<#+}#>{
+		get{<#+if(iInt==0){#>if(index<0)<#=Negative("index")#>;else <#+}#>if(index><#=Block.FormatLength()#>)<#=Exceeds("index")#>;return <#=Block.SystemName#>[<#=IntegerCast#>index];}
+		set{<#+if(iInt==0){#>if(index<0)<#=Negative("index")#>;else <#+}#>if(index><#=Block.FormatLength()#>)<#=Exceeds("index")#>;<#=Block.SystemName#>[<#=IntegerCast#>index]=value;}
+	}
+<#+if(iFace==-1)break;}#>
+	void IAllocationView<<#=Block#>>.GetOffsetAndLength(out int Offset, out int Length){
+		Offset=<#=Allocation=="this"?"0":"this.Offset"#>;Length = <#=Block.FormatLength("this.Length")#>;
+	}
+	IAllocationView<<#=Block#>> IAllocationView<<#=Block#>>.Segment(uint Offset, uint Length){
+		if(Offset>=<#=Block.FormatLength("this.Length")#>)<#=Exceeds("Offset")#>;
+		if(Offset+Length><#=Block.FormatLength("this.Length")#>)<#=Exceeds("Offset+Length")#>;
+		return new <#=Block.Segment#>(<#=Allocation#>,(int)<#+if(!ThisIsAllocation){#>(this.Offset+<#+}#>Offset<#+if(!ThisIsAllocation)Write(")");#>,(int)Length);
+	}
+	public void Segment(uint Offset, uint Length, out <#=Block.Segment#> Made){
+		if(Offset>=<#=Block.FormatLength("this.Length")#>)<#=Exceeds("Offset")#>;
+		if(Offset+Length><#=Block.FormatLength("this.Length")#>)<#=Exceeds("Offset+Length")#>;
+		Made= new <#=Block.Segment#>(<#=Allocation#>,(int)<#+if(!ThisIsAllocation){#>(this.Offset+<#+}#>Offset<#+if(!ThisIsAllocation)Write(")");#>,(int)Length);
+	}
+	public unsafe int IndexOf(<#=Block#> item){
+		int Position;
+<#+if(Block.Shift!=0&&LengthNeedsOffset){#>
+		int Length=<#=Block.FormatLength("this.Length")#>;
+<#+}#>
+		for(Position=0;Position!=Length;++Position)
+			if(<#=Block.SystemName#>[Position]==item)
+				break;
+		return Position==Length?-1:Position;
+	}
+	public unsafe int LastIndexOf(<#=Block#> item){
+		int Position;
+		for(Position=<#=Block.FormatLength()#>-1;Position>=0;--Position)
+			if(<#=Block.SystemName#>[Position]==item)
+				break;
+		return Position;
+	}
+	public unsafe bool Contains(<#=Block#> item){
+		int Position;
+		for(Position=<#=Block.FormatLength()#>-1;Position>=0;--Position)
+			if(<#=Block.SystemName#>[Position]==item)
+				break;
+		return Position>=0;
+	}
+	void ICollection<<#=Block#>>.Add(<#=Block#> item){ <#=CannotMutateLength()#>;}
+	void IList<<#=Block#>>.Insert(int index, <#=Block#> item){ <#=CannotMutateLength()#>;}
+	bool ICollection<<#=Block#>>.Remove(<#=Block#> item){ <#=CannotMutateLength()#>;}
+	void IList<<#=Block#>>.RemoveAt(int index){ <#=CannotMutateLength()#>;}
+	void ICollection<<#=Block#>>.Clear(){ <#=CannotMutateLength()#>;}
+	public unsafe bool Get(int index, out <#=Block#> value){bool ranged;if((ranged=!(index<0||index>=<#=Block.FormatLength()#>)))value=<#=Block.SystemName#>[index];else value=0; return ranged;}
+	public unsafe <#=Block#> Get(int index, <#=Block#> fallback){return (index<0||index>=<#=Block.FormatLength()#>)?fallback:<#=Block.SystemName#>[index];}
+	public unsafe <#=Block#>? Get(int index, <#=Block#>? fallback){return (index<0||index>=<#=Block.FormatLength()#>)?fallback:<#=Block.SystemName#>[index];}
+	unsafe <#=Block#>? IAllocationView<<#=Block#>>.Get(int index){return (index<0||index>=<#=Block.FormatLength()#>)?default(<#=Block#>?):<#=Block.SystemName#>[index];}
+	public unsafe bool GetUpdate(int index, ref <#=Block#> value){bool ranged;if((ranged=!(index<0||index>=<#=Block.FormatLength()#>)))value=<#=Block.SystemName#>[index];return ranged;}
+	public unsafe void GetBlind(int index, out <#=Block#> value){if(!(index<0||index>=<#=Block.FormatLength()#>))value=<#=Block.SystemName#>[index];else value=0;}
+	public unsafe void GetUpdateBlind(int index, ref <#=Block#> value){if(!(index<0||index>=<#=Block.FormatLength()#>))value=<#=Block.SystemName#>[index];}
+	public unsafe bool Set(int index, <#=Block#> value){bool ranged;if((ranged=!(index<0||index>=<#=Block.FormatLength()#>)))<#=Block.SystemName#>[index]=value;return ranged;}
+	public unsafe void SetBlind(int index, <#=Block#> value){if(!(index<0||index>=<#=Block.FormatLength()#>))<#=Block.SystemName#>[index]=value;}
+<#+for(int iDirection=0;iDirection<2;iDirection++){#>
+<#+	string Method=iDirection==0?"CopyTo":"CopyFrom";#>
+	public unsafe void <#=Method#>(int offset, <#=Block#> *buffer, int count){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr=<#=Block.SystemName#>+offset;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			buffer[count]=ptr[count];
+<#+	}else{#>
+			ptr[count]=buffer[count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(<#=Block#> *buffer, int count){
+		if(count<0)<#=Negative("count")#>;
+		if(count><#=Block.FormatLength("Length")#>)<#=Exceeds("count")#>;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			buffer[count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=buffer[count];
+<#+	}#>
+	}
+<#+if(iDirection==0){#>
+	public unsafe void <#=Method#>(<#=Block#> *buffer){
+		int count = <#=Block.FormatLength()#>;
+		while(0!=count--)
+			buffer[count]=<#=Block.SystemName#>[count];
+	}
+<#+}#>
+	public unsafe void <#=Method#>(int offset, int count, <#=Block#>[] array, int arrayIndex){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr=<#=Block.SystemName#>+offset;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			array[arrayIndex+count]=ptr[count];
+<#+	}else{#>
+			ptr[count]=array[arrayIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(int offset, int count, <#=Block#>[] array){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr=<#=Block.SystemName#>+offset;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			array[count]=ptr[count];
+<#+	}else{#>
+			ptr[count]=array[count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>( int count, <#=Block#>[] array, int arrayIndex){
+		if(count<0)<#=Negative("count")#>;
+		if(count><#=Block.FormatLength("Length")#>)<#=Exceeds("count")#>;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			array[arrayIndex+count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=array[arrayIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(<#=Block#>[] array, int arrayIndex){
+<#+	if(iDirection==0){#>
+		int count = <#=Block.FormatLength()#>;
+<#+	}else{#>
+		int count;
+		if(arrayIndex<0)<#=Negative("arrayIndex")#>;
+		count = array.Length-arrayIndex;
+		if(count><#=Block.FormatLength()#>)count=<#=Block.FormatLength()#>;
+		if(count<=0)return;
+<#+	}#>
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			array[arrayIndex+count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=array[arrayIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(<#=Block#>[] array){
+<#+	if(iDirection==0){#>
+		int count = <#=Block.FormatLength()#>;
+<#+	}else{#>
+		int count=array.Length;
+		if(count><#=Block.FormatLength()#>)count=<#=Block.FormatLength()#>;
+<#+	}#>
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			array[count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=array[count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(int offset, int count, ref <#=Block.Segment#> segment, int segmentIndex){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr=<#=Block.SystemName#>+offset;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			segment.<#=Block.SystemName#>[segmentIndex+count]=ptr[count];
+<#+	}else{#>
+			ptr[count]=segment.<#=Block.SystemName#>[segmentIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(int offset, int count, ref <#=Block.Segment#> segment){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr=<#=Block.SystemName#>+offset;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			segment.<#=Block.SystemName#>[count]=ptr[count];
+<#+	}else{#>
+			ptr[count]=segment.<#=Block.SystemName#>[count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>( int count, ref <#=Block.Segment#> segment, int segmentIndex){
+		if(count<0)<#=Negative("count")#>;
+		if(count><#=Block.FormatLength("Length")#>)<#=Exceeds("count")#>;
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			segment.<#=Block.SystemName#>[segmentIndex+count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=segment.<#=Block.SystemName#>[segmentIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(ref <#=Block.Segment#> segment, int segmentIndex){
+<#+	if(iDirection==0){#>
+		int count = <#=Block.FormatLength()#>;
+<#+	}else{#>
+		int count;
+		if(segmentIndex<0)<#=Negative("segmentIndex")#>;
+		count = segment.Length-segmentIndex;
+		if(count><#=Block.FormatLength()#>)count=<#=Block.FormatLength()#>;
+		if(count<=0)return;
+<#+	}#>
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			segment.<#=Block.SystemName#>[segmentIndex+count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=segment.<#=Block.SystemName#>[segmentIndex+count];
+<#+	}#>
+	}
+	public unsafe void <#=Method#>(ref <#=Block.Segment#> segment) {
+<#+	if(iDirection==0){#>
+		int count = <#=Block.FormatLength()#>;
+<#+	}else{#>
+		int count=<#=Block.FormatLength("segment.Length")#>;
+		if(count><#=Block.FormatLength()#>)count=<#=Block.FormatLength()#>;
+<#+	}#>
+		while(0!=count--)
+<#+	if(iDirection==0){#>
+			segment.<#=Block.SystemName#>[count]=<#=Block.SystemName#>[count];
+<#+	}else{#>
+			<#=Block.SystemName#>[count]=segment.<#=Block.SystemName#>[count];
+<#+	}#>
+	}
+<#+}#>
+	public unsafe void ToArray(out <#=Block#>[] array, int offset, int count){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		array = AllocationUtility.New<#=Block.SystemName#>Array(count);
+		ptr= <#=Block.SystemName#>+offset;
+		while(0!=count--)array[count]=ptr[count];
+	}
+	public unsafe void ToArray(out <#=Block#>[] array){
+		int count=<#=Block.FormatLength()#>;
+		array = AllocationUtility.New<#=Block.SystemName#>Array(count);
+		while(0!=count--)array[count]=<#=Block.SystemName#>[count];
+	}
+<#+if(!ThisIsAllocation||Block==BlockType.Byte){#>
+	public unsafe <#=Block#>[] ToArray(){
+		int count=<#=Block.FormatLength()#>;
+		var array = AllocationUtility.New<#=Block.SystemName#>Array(count);
+		while(0!=count--)array[count]=<#=Block.SystemName#>[count];
+		return array;
+	}
+	public <#=Block.Segment#> Segment(uint Offset, uint Length){
+		<#=Block.Segment#> ret;
+		Segment(Offset,Length, out ret);
+		return ret;
+	}
+	public unsafe void WriteTo(System.IO.Stream stream){
+		AllocationUtility.StreamWrite(stream,(byte*)<#=Block.SystemName#>,<#=Block.FormatSize()#>);
+	}
+	public unsafe void WriteTo(System.IO.Stream stream, int offset, int count){
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		AllocationUtility.StreamWrite(stream,(byte*)(<#=Block.SystemName#>+offset),<#=Block.FormatSize("count")#>);
+	}
+	public unsafe int ReadFrom(System.IO.Stream stream){
+		return AllocationUtility.StreamRead(stream,(byte*)<#=Block.SystemName#>,<#=Block.FormatSize()#>);
+	}
+	public unsafe int ReadFrom(System.IO.Stream stream, int offset, int count){
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		return AllocationUtility.StreamRead(stream,(byte*)(<#=Block.SystemName#>+offset),<#=Block.FormatSize("count")#><#+if(Block.Shift!=0)Write(","+Block.Shift);#>);
+	}
+<#+}#>
+<#+if(!ThisIsAllocation && !LengthNeedsOffset){#>
+<#+for(int iWriterType=0;iWriterType<2;iWriterType++){
+	string Writer = iWriterType==0?"System.IO.TextWriter":"System.IO.BinaryWriter";
+	#>
+	public unsafe void WriteTo(<#=Writer#> stream){
+		for(int Position=0;Position<Length;++Position)
+			stream.Write(<#=Block.SystemName#>[Position]);
+	}
+	public unsafe void WriteTo(<#=Writer#> stream, int offset, int count){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr = <#=Block.SystemName#>+offset;
+		
+		for(int Position=0;Position<count;++Position)
+			stream.Write(ptr[Position]);
+	}
+<#+}#>
+	public unsafe void ReadFrom(System.IO.BinaryReader stream){
+		for(int Position=0;Position<Length;++Position)
+			<#=Block.SystemName#>[Position] = stream.Read<#=Block.SystemName#>();
+	}
+	public unsafe void ReadFrom(System.IO.BinaryReader stream, int offset, int count){
+		<#=Block#>*ptr;
+		if(offset<0)<#=Negative("offset")#>;
+		if(count<0)<#=Negative("count")#>;
+		if((uint)offset+(uint)count><#=Block.FormatLength()#>)<#=Exceeds("offset+count")#>;
+		ptr = <#=Block.SystemName#>+offset;
+		
+		for(int Position=0;Position<count;++Position)
+			ptr[Position]=stream.Read<#=Block.SystemName#>();
+	}
+<#+}#>
+<#+}finally{LengthIsUnformatted=Restore;}
+}
+void PrintAccessMembers(bool IsSegment){
+#>
+	public IAllocationAccessBIG BIG => this;
+	public IAllocationAccessLITTLE LITTLE => this;
+<#+	for(int iEndian=0;iEndian<2;iEndian++){
+		bool BigEndian = iEndian==0;
+		string LE = BigEndian?"BE":"LE";
+		string Format = BigEndian ? "unsafe {0} IAllocationAccessBIG." : "unsafe public {0} ";
+		foreach(var Block in BlockType.Each){
+			string CheckUOffset="if((uint)byte_offset+"+Block.Size+"u>Length)"+Exceeds("byte_offset")+";";
+			string CheckOffset="if(byte_offset<0)"+Negative("byte_offset")+";"+CheckUOffset;
+			string CheckZeroOffset="if("+Block.Size+">Length)"+Exceeds("this.Length+sizeof("+Block+")")+";";
+#>
+<#=string.Format(Format,Block)#>@<#=Block#>(){<#=CheckZeroOffset#> return AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte);}
+<#=string.Format(Format,"void")#>@in(out <#=Block#> value){<#=CheckZeroOffset#> value=AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte);}
+<#=string.Format(Format,"void")#>@out(<#=Block#> value){<#=CheckZeroOffset#> AccessUtility.W<#=Block.BlockName+LE+Block.Size#>(Byte,value);}
+<#=string.Format(Format,Block)#>@<#=Block#>(int byte_offset){<#=CheckOffset#> return AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset); }
+<#=string.Format(Format,"void")#>@in(out <#=Block#> value,int byte_offset){<#=CheckOffset#> value= AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset);}
+<#=string.Format(Format,"void")#>@out(<#=Block#> value,int byte_offset){<#=CheckOffset#> AccessUtility.W<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset,value);}
+<#=string.Format(Format,Block)#>@<#=Block#>(uint byte_offset){<#=CheckUOffset#> return AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset); }
+<#=string.Format(Format,"void")#>@in(out <#=Block#> value,uint byte_offset){<#=CheckUOffset#> value= AccessUtility.R<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset);}
+<#=string.Format(Format,"void")#>@out(<#=Block#> value,uint byte_offset){<#=CheckUOffset#> AccessUtility.W<#=Block.BlockName+LE+Block.Size#>(Byte+byte_offset,value);}
+<#+			if(Block.Trait!=BlockTrait.Float){
+CheckUOffset="if(byte_size>"+Block.Size+")"+Exceeds("byte_size")+";if((uint)byte_offset+(uint)byte_size>Length)"+Exceeds("byte_offset")+";";
+CheckOffset="if(byte_offset<0)"+Negative("byte_offset")+";"+CheckUOffset;
+string PartialRead = Block.GetPartialRead(LE,"byte_size","Byte+byte_offset");
+string PartialWrite = Block.GetPartialWrite(LE,"byte_size","Byte+byte_offset");
+
+#>
+<#=string.Format(Format,Block)#>@<#=Block#>(int byte_offset, byte byte_size){<#=CheckOffset#> return <#=PartialRead#>; }
+<#=string.Format(Format,"void")#>@in(out <#=Block#> value,int byte_offset, byte byte_size){<#=CheckOffset#> value= <#=PartialRead#>;}
+<#=string.Format(Format,"void")#>@out(<#=Block#> value,int byte_offset, byte byte_size){<#=CheckOffset#> <#=PartialWrite#>}
+<#=string.Format(Format,Block)#>@<#=Block#>(uint byte_offset, byte byte_size){<#=CheckUOffset#> return <#=PartialRead#>; }
+<#=string.Format(Format,"void")#>@in(out <#=Block#> value,uint byte_offset, byte byte_size){<#=CheckUOffset#> value= <#=PartialRead#>;}
+<#=string.Format(Format,"void")#>@out(<#=Block#> value,uint byte_offset, byte byte_size){<#=CheckUOffset#> <#=PartialWrite#>}
+<#+			}
+		}
+	}
+}
+public static void ResetStatic(){LengthIsUnformatted=false;}
+#>

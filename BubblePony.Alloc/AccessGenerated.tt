@@ -1,0 +1,187 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+using System;
+using System.Runtime.InteropServices;
+namespace BubblePony.Alloc{
+	public static partial class AccessUtility{
+<#
+string[] Endians=new string[4];
+for(ByteLength=1;ByteLength<=8;++ByteLength)
+for(iSigned=0==Float.Length?0:-1;iSigned<2;++iSigned){
+	string Type=this.Type;
+	for(iEndian=0;iEndian<4;++iEndian){
+		Endians[iEndian]=T+InBits+LE+ByteLength;
+	}
+	for(iEndian=0;iEndian<4;++iEndian){
+		string Suffix = Endians[iEndian];#>
+		///<summary> reads <#=ByteLength#> bytes from ptr to form a <#=Type#> <#=EndianComment#>.</summary>
+		static unsafe public <#=Type#> R<#=Suffix#>(void*ptr){<#
+			if(IsEndianCase){
+				if((ByteLength<2)||(!IsOtherEndian && InBytes==ByteLength)){
+					#>return *((<#=Type#>*)ptr);<#
+				}else{#>
+
+			byte*buf=stackalloc byte[<#=InBytes#>];
+<#					for(int iPos=InBytes-1;iPos>=ByteLength;--iPos){#>
+			buf[<#=iPos#>]=0;
+<#					}#>
+<#					for(int iPos=ByteLength-1,uPos;iPos>=0;--iPos){
+						uPos=!IsOtherEndian?iPos:(ByteLength-(iPos+1));#>
+			buf[<#=iPos#>]=((byte*)ptr)[<#=uPos#>];
+<#					}#>
+			return <#if(SignedInt){#>(<#=Type#>)((<#}#>*((<#=Type#>*)buf)<#if(SignedInt){#><<<#=(InBytes-ByteLength)<<3#>)>><#=(InBytes-ByteLength)<<3#>)<#}#>;
+		<#		}
+			}
+			else
+			{
+				#>return BitConverter.IsLittleEndian?R<#=Endians[IsOtherEndian?3:2]#>(ptr):R<#=Endians[IsOtherEndian?2:3]#>(ptr);<#
+			}
+		#>}
+		///<summary> writes <#=ByteLength#> bytes from a <#=Type#> (value) to ptr <#=EndianComment#>.</summary>
+		static unsafe public void W<#=Suffix#>(void*ptr,<#=Type#> value){<#
+			if(IsEndianCase){
+				if((ByteLength<2)||(!IsOtherEndian && InBytes==ByteLength)){
+					#>*((<#=Type#>*)ptr)=value;<#
+				}else{#>
+
+			byte*buf=stackalloc byte[<#=InBytes#>];
+			*((<#=Type#>*)buf)=value;
+<#					for(int iPos=ByteLength-1,uPos;iPos>=0;--iPos){
+	uPos=!IsOtherEndian?iPos:(ByteLength-(iPos+1));#>
+			((byte*)ptr)[<#=iPos#>]=buf[<#=uPos#>];
+<#					}#>
+		<#		}
+			}else{
+				#>if(BitConverter.IsLittleEndian)W<#=Endians[IsOtherEndian?3:2]#>(ptr,value);else W<#=Endians[IsOtherEndian?2:3]#>(ptr,value);<#
+			}
+			#>}
+		///<summary> identical to the void* usage, see notes on <#=Type#> AccessUtility::R<#=Suffix#>(void*ptr)</summary>
+		static unsafe public <#=Type#> R<#=Suffix#>(IntPtr ptr){return R<#=Suffix#>(ptr.ToPointer());}
+		///<summary> identical to the void* usage, see notes on void AccessUtility::W<#=Suffix#>(void*ptr,<#=Type#> value)</summary>
+		static unsafe public void W<#=Suffix#>(IntPtr ptr,<#=Type#> value){W<#=Suffix#>(ptr.ToPointer(),value);}
+		///<summary> identical to the void* usage but increments ptr by <#=ByteLength#> before returning. see notes on <#=Type#> AccessUtility::R<#=Suffix#>(void*ptr)</summary>
+		static unsafe public <#=Type#> R<#=Suffix#>(ref byte* ptr){var ret= R<#=Suffix#>(ptr); ptr+=<#=ByteLength#>;return ret; }
+		///<summary> identical to the void* usage but increments ptr by <#=ByteLength#> before returning. see notes on void AccessUtility::W<#=Suffix#>(void*ptr,<#=Type#> value)</summary>
+		static unsafe public void W<#=Suffix#>(ref byte* ptr,<#=Type#> value){W<#=Suffix#>(ptr,value);ptr+=<#=ByteLength#>;}
+		///<summary> identical to the void* usage but increments ptr by <#=ByteLength#> (byte<#if(ByteLength!=0)Write("s");#>) before returning. see notes on <#=Type#> AccessUtility::R<#=Suffix#>(void*ptr)</summary>
+		static unsafe public <#=Type#> R<#=Suffix#>(ref IntPtr ptr){var ret= R<#=Suffix#>(ptr.ToPointer()); ptr+=<#=ByteLength#>;return ret; }
+		///<summary> identical to the void* usage but increments ptr by <#=ByteLength#> (byte<#if(ByteLength!=0)Write("s");#>) before returning. see notes on void AccessUtility::W<#=Suffix#>(void*ptr,<#=Type#> value)</summary>
+		static unsafe public void W<#=Suffix#>(ref IntPtr ptr,<#=Type#> value){W<#=Suffix#>(ptr,value);ptr+=<#=ByteLength#>;}
+		unsafe public static bool X<#=Suffix#>(ref AccessStream ptr, ref <#=Type#> value){<#
+	if(IsEndianCase){#>
+
+			bool ret;
+			if((ret=(AccessStream.ValidBit0!=(ptr.MutableFlags0 & AccessStream.RunningMask))))
+				if(<#if(1==ByteLength){#>0==ptr.Remaining<#}else{#>ptr.Remaining < <#=ByteLength#>u<#}#>){ptr.MutableFlags0 |= AccessStream.ExceededBufferSize;ret=false;}
+				else{
+					if(0==(ptr.MutableFlags0&AccessStream.WriteBit0))value=R<#=Suffix#>(ptr.Ptr);else W<#=Suffix#>(ptr.Ptr,value);
+<#				if(ByteLength!=1){#>
+					ptr.MutablePtr += <#=ByteLength#>;ptr.Remaining -= <#=ByteLength#>u;
+					if(0==ptr.Remaining)<#
+				}else{#>
+					ptr.MutablePtr++; if(0==--ptr.Remaining)<#
+				}
+						#>{ ptr.MutableFlags0 |= AccessStream.FilledBufferSize; ret=false; }
+				}
+			return ret;
+		<#
+	}else{
+		#>return BitConverter.IsLittleEndian?X<#=Endians[IsOtherEndian?3:2]#>(ref ptr,ref value) : X<#=Endians[IsOtherEndian?2:3]#>(ref ptr,ref value);<#
+	}
+	#>}
+<#}}#>
+	}
+	[StructLayout(LayoutKind.Explicit,Size=16)]
+	public struct AccessStream{
+		[FieldOffset(0)]
+		public readonly ulong Adr;
+		[FieldOffset(0)]
+		internal unsafe byte* MutablePtr;
+		[FieldOffset(0)]
+		public readonly IntPtr IntPtr;
+		[FieldOffset(0)]
+		unsafe public readonly void* Ptr;
+		[FieldOffset(8)]
+		internal uint MutableFlags0;
+		[FieldOffset(8)]
+		public readonly uint Flags0;
+		[FieldOffset(12)]
+		public readonly uint BufferRemaining;
+		[FieldOffset(12)]
+		internal uint Remaining;
+
+		public const uint WriteBit0 = 2u;
+		public const uint ValidBit0 = 1u;
+		public const uint ExceededBufferSize = 4u;
+		public const uint FilledBufferSize = 8u;
+		public const uint Write = ValidBit0 | WriteBit0;
+		public const uint Read = ValidBit0;
+		public const uint ReadWriteMask = Write | Read;
+		public const uint RunningMask = ExceededBufferSize|FilledBufferSize|ValidBit0;
+		
+		public bool IsRead => Read == (Flags0&ReadWriteMask);
+		public bool IsWrite => Write == (Flags0&ReadWriteMask);
+		public bool IsValid => 0 != (Flags0&ValidBit0);
+		public bool IsInvalid => 0 == (Flags0&ValidBit0);
+		public bool IsRunning => ValidBit0 == (Flags0&RunningMask);
+		
+		unsafe public AccessStream(IntPtr Ptr, bool Write, uint BufferSize=uint.MaxValue){
+			if(0==BufferSize)
+				Ptr=IntPtr.Zero;
+			else if(IntPtr.Zero==Ptr)
+				BufferSize=0;
+
+			this.Remaining=0;
+			this.Adr=0;
+			this.MutableFlags0=0;
+			this.IntPtr=Ptr;
+			this.MutablePtr=(byte*)Ptr.ToPointer();
+			this.Ptr=this.MutablePtr;
+			this.Flags0=null==this.Ptr?0:Write?AccessStream.Write:Read;
+			this.BufferRemaining=BufferSize;
+		}
+		unsafe public AccessStream(byte* Ptr, bool Write, uint BufferSize=uint.MaxValue){
+			if(0==BufferSize)
+				Ptr=null;
+			else if(null==Ptr)
+				BufferSize=0;
+				
+			this.Remaining=0;
+			this.Adr=0;
+			this.MutableFlags0=0;
+			this.MutablePtr=Ptr;
+			this.Ptr=this.MutablePtr;
+			this.IntPtr=(IntPtr)this.MutablePtr;
+			this.Flags0=null==this.Ptr?0:Write?AccessStream.Write:Read;
+			this.BufferRemaining=BufferSize;
+		}
+	}
+}
+
+<#+
+int ByteLength;
+int iSigned;
+int iEndian;
+bool IsOtherEndian{get{return 1==(iEndian&1);}}
+bool IsEndianCase{get{return 2==(iEndian&2);}}
+bool Signed {get{return 0!=iSigned;}}
+bool SignedInt {get{return 1==iSigned;}}
+bool BigEndian {get{return 1==iEndian;}}
+bool LittleEndian {get{return 0==iEndian;}}
+int InBytes {get{return ByteLength>1?ByteLength>2?ByteLength>4?8:4:2:1;}}
+int InBits {get{return InBytes<<3;}}
+string T {get{return 1==iSigned?"S":0==iSigned?"U":"F";}}
+string LE {get{return IsEndianCase?IsOtherEndian?"OE":"NE":BigEndian?"BE":"LE";}}
+string EndianComment {get{return BigEndian?"(Big Endian)":LittleEndian?"(Little Endian)":IsOtherEndian?"(Other Endian, !System.BitConverter.IsLittleEndian)":"(Natural Endian, System.BitConverter.IsLittleEndian)";}}
+string UInt {get{var InBytes=this.InBytes; return InBytes==1?"byte":InBytes==2?"ushort":InBytes==4?"uint":"ulong";}}
+string SInt {get{var InBytes=this.InBytes; return InBytes==1?"sbyte":InBytes==2?"short":InBytes==4?"int":"long";}}
+string Float {get{var InBytes=this.InBytes; return (!Signed||InBytes<4||InBytes!=ByteLength)?string.Empty:InBytes==4?"float":"double";}}
+string Int {get{return Signed?SInt:UInt;}}
+string Type {get{return iSigned<0?Float:Int;}}
+
+#>
+
